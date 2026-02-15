@@ -1,0 +1,930 @@
+﻿--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\app\auth\callback\route.ts
+--------------------------------------------------
+import { NextResponse } from 'next/server'
+// The client you created from the Server-Side Auth instructions
+import { createClient } from '@/lib/supabase/server'
+
+export async function GET(request: Request) {
+    const { searchParams, origin } = new URL(request.url)
+    const code = searchParams.get('code')
+    // if "next" is in param, use it as the redirect URL
+    const next = searchParams.get('next') ?? '/'
+
+    if (code) {
+        const supabase = await createClient()
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error) {
+            const forwardedHost = request.headers.get('x-forwarded-host') // original origin before load balancer
+            const isLocalEnv = process.env.NODE_ENV === 'development'
+            if (isLocalEnv) {
+                // we can be sure that there is no load balancer in between, so no need to watch for X-Forwarded-Host
+                return NextResponse.redirect(`${origin}${next}`)
+            } else if (forwardedHost) {
+                return NextResponse.redirect(`https://${forwardedHost}${next}`)
+            } else {
+                return NextResponse.redirect(`${origin}${next}`)
+            }
+        }
+    }
+
+    // return the user to an error page with instructions
+    return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\app\auth\signout\route.ts
+--------------------------------------------------
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
+
+export async function POST(request: Request) {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login", request.url));
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\app\login\page.tsx
+--------------------------------------------------
+import { GoogleAuthButton } from "@/components/auth-button";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
+export default async function LoginPage() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+        redirect("/");
+    }
+
+    return (
+        <div className="flex min-h-screen flex-col items-center justify-center bg-black text-white p-4">
+            <div className="w-full max-w-md space-y-8 rounded-xl border border-gray-800 bg-gray-900/50 p-8 backdrop-blur-xl shadow-2xl">
+                <div className="text-center space-y-2">
+                    <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
+                        Smart Bookmarks
+                    </h1>
+                    <p className="text-gray-400">
+                        Your personal space for organizing links.
+                    </p>
+                </div>
+
+                <div className="space-y-4">
+                    <GoogleAuthButton />
+                </div>
+
+                <div className="text-center text-sm text-gray-500">
+                    <p>Secure authentication via Supabase</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\app\globals.css
+--------------------------------------------------
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInFromBottom {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes zoomIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.animate-in {
+    animation-duration: 0.5s;
+    animation-fill-mode: both;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-in {
+    animation-name: fadeIn;
+}
+
+.slide-in-from-bottom-4 {
+    animation-name: slideInFromBottom;
+}
+
+.zoom-in {
+    animation-name: zoomIn;
+}
+
+.fill-mode-backwards {
+    animation-fill-mode: backwards;
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\app\layout.tsx
+--------------------------------------------------
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Smart Bookmarks",
+  description: "A fast, secure, and beautiful way to manage your bookmarks.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\app\page.tsx
+--------------------------------------------------
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { AddBookmark } from "@/components/add-bookmark";
+import { BookmarkList } from "@/components/bookmark-list";
+import { LogOut } from "lucide-react";
+
+export default async function Home() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: bookmarks } = await supabase
+    .from("bookmarks")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  return (
+    <div className="min-h-screen bg-black text-gray-100 selection:bg-purple-500/30">
+      <header className="bg-gray-900/50 backdrop-blur-md border-b border-gray-800 sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center font-bold text-white shadow-lg shadow-purple-500/20">SB</div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">Smart Bookmarks</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-400 hidden sm:inline">{user.email}</span>
+            <form action="/auth/signout" method="post">
+              <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors bg-gray-800/50 hover:bg-gray-800 px-3 py-1.5 rounded-full border border-gray-700/50 hover:border-gray-600">
+                <span className="hidden sm:inline">Sign Out</span>
+                <LogOut size={16} />
+              </button>
+            </form>
+          </div>
+        </div>
+      </header>
+      <main className="max-w-6xl mx-auto p-4 space-y-8 mt-6">
+        <AddBookmark />
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-white px-1">Your Collection</h2>
+          <BookmarkList initialBookmarks={bookmarks || []} currentUser={user} />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\components\ui\button.tsx
+--------------------------------------------------
+import { cn } from "@/lib/utils";
+import React from "react";
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+    variant?: "primary" | "secondary" | "outline" | "danger" | "ghost";
+}
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+    ({ className, variant = "primary", ...props }, ref) => {
+        const variants = {
+            primary: "bg-white text-black hover:bg-gray-200 shadow-sm",
+            secondary: "bg-gray-800 text-white hover:bg-gray-700 shadow-sm",
+            outline: "border border-gray-700 text-gray-300 hover:bg-gray-800",
+            danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+            ghost: "text-gray-400 hover:text-white hover:bg-white/10",
+        };
+
+        return (
+            <button
+                ref={ref}
+                className={cn(
+                    "inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400 disabled:pointer-events-none disabled:opacity-50 active:scale-95",
+                    variants[variant],
+                    className
+                )}
+                {...props}
+            />
+        );
+    }
+);
+Button.displayName = "Button";
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\components\add-bookmark.tsx
+--------------------------------------------------
+"use client";
+import React, { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { events } from "@/lib/events";
+import { v4 as uuidv4 } from "uuid";
+
+export function AddBookmark() {
+    const [url, setUrl] = useState("");
+    const [title, setTitle] = useState("");
+    const [loading, setLoading] = useState(false);
+    const supabase = createClient();
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            alert("You must be logged in");
+            setLoading(false);
+            return;
+        }
+
+        const newBookmark = {
+            id: uuidv4(),
+            title,
+            url,
+            user_id: user.id,
+            created_at: new Date().toISOString()
+        };
+
+        // Optimistic update
+        events.emit("add-bookmark", newBookmark);
+
+        const { error: insertError } = await supabase.from("bookmarks").insert({
+            id: newBookmark.id,
+            title,
+            url,
+            user_id: user.id,
+            created_at: newBookmark.created_at
+        });
+
+        if (insertError) {
+            alert("Error adding bookmark: " + insertError.message);
+            console.error(insertError);
+            // In a real app, we'd emit a 'remove-optimistic' event here
+        } else {
+            setUrl("");
+            setTitle("");
+        }
+        setLoading(false);
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6 border rounded-xl bg-gray-900/50 border-gray-800 backdrop-blur-sm shadow-xl relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-purple-500 to-pink-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+            <h2 className="text-xl font-semibold text-white pl-2">Add New Bookmark</h2>
+            <div className="flex flex-col sm:flex-row gap-4">
+                <input
+                    type="text"
+                    placeholder="Title (e.g. My Favorite Blog)"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="flex-1 p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-purple-500 focus:outline-none transition-all focus:ring-1 focus:ring-purple-500/50"
+                    required
+                />
+                <input
+                    type="url"
+                    placeholder="URL (https://example.com)"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="flex-1 p-3 rounded-lg bg-gray-800 text-white border border-gray-700 focus:border-purple-500 focus:outline-none transition-all focus:ring-1 focus:ring-purple-500/50"
+                    required
+                />
+                <Button type="submit" disabled={loading} className="py-3 px-6 h-auto bg-gradient-to-r from-purple-600 to-pink-600 border-0 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-900/20 active:scale-95 transition-all">
+                    {loading ? "Adding..." : <><Plus size={18} className="mr-2" /> Add</>}
+                </Button>
+            </div>
+        </form>
+    );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\components\auth-button.tsx
+--------------------------------------------------
+"use client";
+
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { LogIn } from "lucide-react";
+
+export function GoogleAuthButton() {
+    const supabase = createClient();
+
+    const handleLogin = async () => {
+        await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: `${location.origin}/auth/callback`,
+            },
+        });
+    };
+
+    return (
+        <Button
+            onClick={handleLogin}
+            className="w-full gap-2 text-base py-6"
+        >
+            <LogIn size={20} />
+            Continue with Google
+        </Button>
+    );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\components\bookmark-list.tsx
+--------------------------------------------------
+"use client";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Bookmark } from "@/types";
+import { Trash2, ExternalLink, Globe } from "lucide-react";
+import { Button } from "./ui/button";
+import { events } from "@/lib/events";
+import { User } from "@supabase/supabase-js";
+
+export function BookmarkList({ initialBookmarks, currentUser }: { initialBookmarks: Bookmark[], currentUser?: User | null }) {
+    const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks || []);
+    const supabase = createClient();
+
+    useEffect(() => {
+        if (initialBookmarks) {
+            setBookmarks(initialBookmarks);
+        }
+    }, [initialBookmarks]);
+
+    // Listen for optimistic updates
+    useEffect(() => {
+        const unsub = events.on<Bookmark>("add-bookmark", (newBookmark) => {
+            setBookmarks((prev) => [newBookmark, ...prev]);
+        });
+        return unsub;
+    }, []);
+
+    useEffect(() => {
+        // Filter by user_id if available to prevent receiving events for other users (even if RLS blocks it, this is cleaner)
+        // and to avoid issues where RLS might be flaky if user_id is missing in context.
+
+        let channel = supabase.channel("realtime-bookmarks");
+
+        const filterConfig = {
+            event: "*",
+            schema: "public",
+            table: "bookmarks",
+        } as any;
+
+        if (currentUser?.id) {
+            filterConfig.filter = `user_id=eq.${currentUser.id}`;
+        }
+
+        channel = channel.on(
+            "postgres_changes",
+            filterConfig,
+            (payload) => {
+                console.log("Realtime payload received:", payload);
+                if (payload.eventType === "INSERT") {
+                    setBookmarks((prev) => {
+                        // Prevent duplicates
+                        if (prev.some(b => b.id === payload.new.id)) return prev;
+                        return [payload.new as Bookmark, ...prev];
+                    });
+                } else if (payload.eventType === "DELETE") {
+                    setBookmarks((prev) => prev.filter((b) => b.id !== payload.old.id));
+                } else if (payload.eventType === "UPDATE") {
+                    setBookmarks((prev) => prev.map(b => b.id === payload.new.id ? payload.new as Bookmark : b));
+                }
+            }
+        )
+            .subscribe((status) => {
+                console.log("Realtime subscription status:", status);
+            });
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [currentUser]); // Re-subscribe if user changes
+
+    const handleDelete = async (id: string) => {
+        // Optimistic delete
+        setBookmarks(prev => prev.filter(b => b.id !== id));
+
+        const { error } = await supabase.from("bookmarks").delete().eq("id", id);
+        if (error) {
+            console.error("Error deleting", error);
+            alert("Failed to delete");
+        }
+    };
+
+    if (!bookmarks || bookmarks.length === 0) {
+        return (
+            <div className="animate-in fade-in zoom-in duration-500 text-gray-500 text-center py-20 bg-gray-900/30 rounded-xl border border-dashed border-gray-800 flex flex-col items-center gap-2">
+                <Globe className="w-10 h-10 text-gray-700 mb-2" />
+                <p className="text-lg font-medium">No bookmarks yet</p>
+                <p className="text-sm">Add your first one above!</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {bookmarks.map((bookmark, index) => (
+                <div
+                    key={bookmark.id}
+                    className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-backwards p-5 rounded-xl bg-gray-900/80 border border-gray-800 flex flex-col justify-between group hover:border-purple-500/30 hover:shadow-lg hover:shadow-purple-500/10 transition-all relative overflow-hidden backdrop-blur-sm"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                >
+                    <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 translate-x-2 group-hover:translate-x-0 duration-300">
+                        <Button variant="danger" onClick={() => handleDelete(bookmark.id)} className="h-8 w-8 p-0 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0 transition-all cursor-pointer">
+                            <Trash2 size={14} />
+                        </Button>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                            <h3 className="text-lg font-semibold text-white line-clamp-2 pr-6 leading-tight group-hover:text-purple-200 transition-colors" title={bookmark.title}>
+                                {bookmark.title}
+                            </h3>
+                        </div>
+                        <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-purple-400 truncate block transition-colors flex items-center gap-1.5 p-1.5 bg-black/20 rounded-md w-fit max-w-full hover:bg-black/40">
+                            <ExternalLink size={10} />
+                            <span className="truncate">{bookmark.url}</span>
+                        </a>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-gray-800/50 flex justify-between items-center">
+                        <span className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">
+                            {new Date(bookmark.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\lib\supabase\client.ts
+--------------------------------------------------
+import { createBrowserClient } from "@supabase/ssr";
+
+export function createClient() {
+    return createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\lib\supabase\middleware.ts
+--------------------------------------------------
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+export async function updateSession(request: NextRequest) {
+    let supabaseResponse = NextResponse.next({
+        request,
+    });
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return request.cookies.getAll();
+                },
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        request.cookies.set(name, value)
+                    );
+                    supabaseResponse = NextResponse.next({
+                        request,
+                    });
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        supabaseResponse.cookies.set(name, value, options)
+                    );
+                },
+            },
+        }
+    );
+
+    // refreshing the auth token
+    await supabase.auth.getUser();
+
+    return supabaseResponse;
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\lib\supabase\server.ts
+--------------------------------------------------
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+export async function createClient() {
+    const cookieStore = await cookies();
+
+    return createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return cookieStore.getAll();
+                },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        );
+                    } catch {
+                        // The `setAll` method was called from a Server Component.
+                        // This can be ignored if you have middleware refreshing
+                        // user sessions.
+                    }
+                },
+            },
+        }
+    );
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\lib\events.ts
+--------------------------------------------------
+type Listener<T> = (data: T) => void;
+
+class EventEmitter {
+    private listeners: { [key: string]: Listener<any>[] } = {};
+
+    on<T>(event: string, listener: Listener<T>) {
+        if (!this.listeners[event]) {
+            this.listeners[event] = [];
+        }
+        this.listeners[event].push(listener);
+        return () => {
+            this.listeners[event] = this.listeners[event].filter((l) => l !== listener);
+        };
+    }
+
+    emit<T>(event: string, data: T) {
+        if (this.listeners[event]) {
+            this.listeners[event].forEach((listener) => listener(data));
+        }
+    }
+}
+
+export const events = new EventEmitter();
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\lib\utils.ts
+--------------------------------------------------
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\supabase\enable_realtime.sql
+--------------------------------------------------
+-- Enable replication for the table (often required for Realtime)
+alter publication supabase_realtime add table bookmarks;
+
+-- Ensure RLS is enabled (should already be done)
+alter table bookmarks enable row level security;
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\supabase\schema.sql
+--------------------------------------------------
+-- Create a table for bookmarks
+create table bookmarks (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users not null,
+  title text not null,
+  url text not null,
+  created_at timestamptz default now()
+);
+
+-- Enable Row Level Security (RLS)
+alter table bookmarks enable row level security;
+
+-- Create a policy that allows users to select only their own bookmarks
+create policy "Users can select their own bookmarks"
+  on bookmarks for select
+  using ( auth.uid() = user_id );
+
+-- Create a policy that allows users to insert their own bookmarks
+create policy "Users can insert their own bookmarks"
+  on bookmarks for insert
+  with check ( auth.uid() = user_id );
+
+-- Create a policy that allows users to delete their own bookmarks
+create policy "Users can delete their own bookmarks"
+  on bookmarks for delete
+  using ( auth.uid() = user_id );
+
+-- Create a policy that allows users to update their own bookmarks (optional, but good practice)
+create policy "Users can update their own bookmarks"
+  on bookmarks for update
+  using ( auth.uid() = user_id );
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\types\index.ts
+--------------------------------------------------
+export interface Bookmark {
+    id: string;
+    user_id: string;
+    title: string;
+    url: string;
+    created_at: string;
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\middleware.ts
+--------------------------------------------------
+import { type NextRequest } from "next/server";
+import { updateSession } from "./lib/supabase/middleware";
+
+export async function middleware(request: NextRequest) {
+    return await updateSession(request);
+}
+
+export const config = {
+    matcher: [
+        /*
+         * Match all request paths except for the ones starting with:
+         * - _next/static (static files)
+         * - _next/image (image optimization files)
+         * - favicon.ico (favicon file)
+         * - public folder
+         */
+        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    ],
+};
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\next-env.d.ts
+--------------------------------------------------
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+import "./.next/dev/types/routes.d.ts";
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\next.config.ts
+--------------------------------------------------
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\package.json
+--------------------------------------------------
+{
+  "name": "smart-bookmark-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.95.3",
+    "@types/uuid": "^10.0.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.563.0",
+    "next": "16.1.6",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.4.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\README.md
+--------------------------------------------------
+# Smart Bookmark App
+
+A real-time, secure bookmark management application built with Next.js 15, Supabase, and Tailwind CSS.
+
+## Features
+
+-   **Authentication**: Google OAuth login.
+-   **Real-time Updates**: Bookmarks appear instantly across all devices without refresh.
+-   **Privacy**: Row Level Security (RLS) ensures users only see their own bookmarks.
+-   **Modern UI**: Dark mode, glassmorphism, and responsive design.
+
+## Setup Instructions
+
+1.  **Clone the repository**.
+2.  **Install dependencies**:
+    ```bash
+    cd smart-bookmark-app
+    npm install
+    ```
+3.  **Supabase Setup**:
+    -   Create a new Supabase project.
+    -   Go to **Authentication** -> **Providers** and enable **Google**.
+    -   Go to **SQL Editor** and run the script located in `supabase/schema.sql`. This will create the `bookmarks` table and set up RLS policies.
+4.  **Environment Variables**:
+    -   Copy `.env.local.example` to `.env.local`.
+    -   Fill in your `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from your Supabase project settings.
+5.  **Run the development server**:
+    ```bash
+    npm run dev
+    ```
+6.  **Build for production**:
+    ```bash
+    npm run build
+    npm start
+    ```
+
+## Deployment
+
+Deploy easily to Vercel:
+1.  Push your code to GitHub.
+2.  Import the project in Vercel.
+3.  Set the `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` environment variables in Vercel.
+4.  Deploy!
+
+## Tech Stack
+
+-   **Framework**: Next.js 15 (App Router)
+-   **Styling**: Tailwind CSS v4
+-   **Backend**: Supabase (PostgreSQL, Auth, Realtime)
+-   **Type Safety**: TypeScript
+
+
+
+--------------------------------------------------
+File: C:\Users\yash2\OneDrive\Desktop\Bookmark management app\smart-bookmark-app\tsconfig.json
+--------------------------------------------------
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+
+
+
